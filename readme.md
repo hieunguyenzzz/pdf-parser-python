@@ -1,7 +1,46 @@
-# PDF Content Extraction API
+# Document Content Extraction API
 
 ## Overview
-This is a Flask-based microservice that allows you to extract text content from PDF files hosted at a given URL.
+This is a Flask-based microservice that allows you to extract text content from PDF and DOCX files hosted at a given URL.
+
+## How to Run
+
+1. Clone the repository
+2. Run `docker build -t document-extractor .`
+3. Run `docker run -p 5000:5000 document-extractor`
+4. Test the API using one of the following curl commands:
+
+### PDF Parsing Example
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"url": "https://files.merakiweddingplanner.com/1740543229185-22834be1-0c49-4be5-8579-f1d473f48d7d-CV_Wedding_Planner_Assistant__a__ng_Thanh_Tra_n.pdf"}' http://localhost:5000
+```
+
+### DOCX Parsing Example
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"url": "https://file-examples.com/storage/fe5c8a4a6c9c9c/2017/04/file_example_DOCX_5MB.docx"}' http://localhost:5000
+```
+
+### Response Format
+The API returns a JSON response with two key fields:
+- `text`: The extracted text content of the document
+- `document_type`: The type of document parsed (either 'pdf' or 'docx')
+
+Example Response:
+```json
+{
+    "text": "Document content extracted here...",
+    "document_type": "pdf"
+}
+```
+
+## Supported Document Types
+- PDF (.pdf)
+- DOCX (.docx)
+
+## Notes
+- Ensure the document URL is publicly accessible
+- The API supports documents up to a reasonable size limit
+- File type is detected by file extension or content type
 
 ## how to run
 

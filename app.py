@@ -2,97 +2,61 @@ import os
 import requests
 from flask import Flask, request, jsonify
 import PyPDF2
-import tempfile
+import io
 
 app = Flask(__name__)
 
 def download_pdf(url):
     """
     Download PDF from a given URL
-    
-    Args:
-        url (str): URL of the PDF file
-    
-    Returns:
-        str: Path to the downloaded PDF file
     """
     try:
-        # Send a GET request to download the PDF
-        response = requests.get(url, stream=True)
-        response.raise_for_status()  # Raise an exception for bad status codes
-
-        # Create a temporary file to save the PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-            for chunk in response.iter_content(chunk_size=8192):
-                temp_file.write(chunk)
-            temp_file_path = temp_file.name
-        
-        return temp_file_path
-    
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return io.BytesIO(response.content)
     except requests.RequestException as e:
-        raise Exception(f"Error downloading PDF: {e}")
+        print(f"Error downloading PDF: {e}")
+        return None
 
-def extract_pdf_text(pdf_path):
+def extract_pdf_text(pdf_stream):
     """
-    Extract text content from a PDF file
-    
-    Args:
-        pdf_path (str): Path to the PDF file
-    
-    Returns:
-        dict: Extracted text for each page
+    Extract text from PDF stream
     """
     try:
-        with open(pdf_path, 'rb') as file:
-            pdf_reader = PyPDF2.PdfReader(file)
-            
-            # Extract text from each page
-            pages_text = {}
-            for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num]
-                text = page.extract_text()
-                pages_text[f"page_{page_num + 1}"] = text
-            
-            return {
-                "total_pages": len(pdf_reader.pages),
-                "content": pages_text
-            }
-    
+        reader = PyPDF2.PdfReader(pdf_stream)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        return text
     except Exception as e:
-        raise Exception(f"Error extracting PDF text: {e}")
-    finally:
-        # Clean up the temporary file
-        if 'pdf_path' in locals():
-            os.unlink(pdf_path)
+        print(f"Error extracting PDF text: {e}")
+        return None
 
-@app.route('/parse-pdf', methods=['POST'])
+@app.route('/', methods=['POST'])
 def parse_pdf():
     """
-    API endpoint to parse PDF from a URL
-    
-    Expected JSON payload:
-    {
-        "url": "https://example.com/sample.pdf"
-    }
+    Parse PDF from URL and return extracted text
     """
-    try:
-        # Get PDF URL from request
-        data = request.get_json()
-        pdf_url = data.get('url')
-        
-        if not pdf_url:
-            return jsonify({"error": "PDF URL is required"}), 400
-        
-        # Download PDF
-        pdf_path = download_pdf(pdf_url)
-        
-        # Extract text
-        pdf_content = extract_pdf_text(pdf_path)
-        
-        return jsonify(pdf_content), 200
+    data = request.get_json()
     
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    if not data or 'url' not in data:
+        return jsonify({"error": "URL is required"}), 400
+    
+    pdf_url = data['url']
+    
+    # Download PDF
+    pdf_stream = download_pdf(pdf_url)
+    if not pdf_stream:
+        return jsonify({"error": "Could not download PDF"}), 400
+    
+    # Extract text
+    extracted_text = extract_pdf_text(pdf_stream)
+    if not extracted_text:
+        return jsonify({"error": "Could not extract text from PDF"}), 400
+    
+    return jsonify({
+        "text": extracted_text
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 

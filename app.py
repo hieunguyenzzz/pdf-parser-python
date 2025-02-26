@@ -5,18 +5,48 @@ import PyPDF2
 import io
 import docx
 import mimetypes
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
+import re
 
 app = Flask(__name__)
+
+def convert_google_drive_url(url):
+    """
+    Convert Google Drive sharing URL to direct download link
+    """
+    # Check if it's a Google Drive URL
+    if 'drive.google.com' in url:
+        # Extract file ID from the URL
+        match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+        if match:
+            file_id = match.group(1)
+            # Construct direct download link
+            return f'https://drive.google.com/uc?export=download&id={file_id}'
+    return url
 
 def download_document(url):
     """
     Download document from a given URL
     """
     try:
-        response = requests.get(url, timeout=10)
+        # Convert Google Drive URL if necessary
+        original_url = url
+        url = convert_google_drive_url(url)
+        
+        print(f"Downloading from URL: {url} (original: {original_url})")
+        
+        # Add headers to mimic browser request
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10, stream=True)
         response.raise_for_status()
-        return io.BytesIO(response.content), response.headers.get('Content-Type')
+        
+        content_type = response.headers.get('Content-Type')
+        print(f"Content-Type received: {content_type}")
+        
+        return io.BytesIO(response.content), content_type
     except requests.RequestException as e:
         print(f"Error downloading document: {e}")
         return None, None
@@ -53,6 +83,11 @@ def detect_document_type(url, content_type=None):
     """
     Detect document type from URL or content type
     """
+    # Special case for Google Drive URLs
+    if 'drive.google.com' in url:
+        # Default to PDF for Google Drive links unless we can determine otherwise
+        return 'pdf'
+    
     # Try to determine from URL extension
     path = urlparse(url).path.lower()
     if path.endswith('.pdf'):
@@ -62,12 +97,12 @@ def detect_document_type(url, content_type=None):
     
     # Try to determine from content type
     if content_type:
-        if 'pdf' in content_type.lower():
+        if 'pdf' in content_type.lower() or 'application/octet-stream' in content_type.lower():
             return 'pdf'
         elif 'docx' in content_type.lower() or 'document' in content_type.lower():
             return 'docx'
     
-    # Default to PDF if can't determine
+    # Default to unknown
     return 'unknown'
 
 @app.route('/', methods=['POST'])
@@ -104,7 +139,8 @@ def parse_document():
     
     return jsonify({
         "text": extracted_text,
-        "document_type": document_type
+        "document_type": document_type,
+        "source_url": document_url
     })
 
 if __name__ == '__main__':

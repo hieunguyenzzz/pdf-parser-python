@@ -20,6 +20,11 @@ curl -X POST -H "Content-Type: application/json" -d '{"url": "https://files.mera
 curl -X POST -H "Content-Type: application/json" -d '{"url": "https://file-examples.com/storage/fe5c8a4a6c9c9c/2017/04/file_example_DOCX_5MB.docx"}' http://localhost:5000
 ```
 
+### Google Drive PDF Parsing Example
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"url": "https://drive.google.com/file/d/1K5E4SVOo6Aox4m8ST0x_h_Jt2LBfgzDU/view"}' http://localhost:5000
+```
+
 ### Response Format
 The API returns a JSON response with two key fields:
 - `text`: The extracted text content of the document
